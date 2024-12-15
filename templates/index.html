@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title id="title">Synthetic Data Generator</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <h1>Synthetic Data Generator</h1>
+    <form id="data-form" enctype="multipart/form-data">
+        <label for="dataset">Upload Dataset (CSV):</label>
+        <input type="file" id="dataset" name="dataset" required><br><br>
+
+        <label for="data_type">Select Data Type:</label>
+        <select id="data_type" name="data_type">
+            <option value="tabular">Tabular</option>
+            <option value="time-series">Time-Series</option>
+            <option value="categorical">Categorical</option>
+        </select><br><br>
+
+        <label for="model">Select Model:</label>
+        <select id="model" name="model">
+            {% for model in models %}
+                <option value="{{ model }}">{{ model }}</option>
+            {% endfor %}
+        </select><br><br>
+
+        <label for="rows">Number of Rows to Generate:</label>
+        <input type="number" id="rows" name="rows" min="1" required><br><br>
+
+        <button type="submit">Generate Data</button>
+    </form>
+
+    <div id="output"></div>
+
+    <script>
+        document.getElementById('data-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const formData = new FormData(document.getElementById('data-form'));
+            const output = document.getElementById('output');
+
+            output.innerHTML = "Generating data, please wait...";
+
+            try {
+                const response = await fetch('/generate', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                // Display synthetic data preview as a table
+                let syntheticDataHtml = `
+                    <table border="1" style="border-collapse: collapse; width: 100%;">
+                        <thead>
+                            <tr>${Object.keys(result.synthetic_data_preview[0]).map(col => `<th>${col}</th>`).join('')}</tr>
+                        </thead>
+                        <tbody>
+                            ${result.synthetic_data_preview.map(row => `
+                                <tr>${Object.values(row).map(value => `<td>${value}</td>`).join('')}</tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                `;
+
+                // Format quality_score as a table
+                let qualityScoreHtml = `
+                    <table border="1" style="border-collapse: collapse; width: 100%;">
+                        <thead>
+                            <tr>
+                                <th>Column</th>
+                                <th>Metric</th>
+                                <th>Score</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                `;
+
+                // Loop through each dictionary in the quality_score array
+                result.quality_score.forEach(item => {
+                    qualityScoreHtml += `
+                        <tr>
+                            <td>${item.Column}</td>
+                            <td>${item.Metric}</td>
+                            <td>${item.Score}</td>
+                        </tr>
+                    `;
+                });
+
+                qualityScoreHtml += `
+                        </tbody>
+                    </table>
+                `;
+
+                // Display the plot
+                let plotHtml = `<img src="${result.plot_link}" alt="Column Plot" style="width: 100%;">`;
+
+                // Update the output
+                output.innerHTML = `
+                    <p>Data generated successfully!</p>
+                    <p>Plot:</p>
+                    ${plotHtml}
+                    <p>Preview of Synthetic Data:</p>
+                    ${syntheticDataHtml}
+                    <p>Quality Score:</p>
+                    ${qualityScoreHtml}
+                    <a href="${result.download_link}" download>Download Synthetic Data</a>
+                `;
+            } else {
+                    output.innerHTML = `<p>Error: ${result.error}</p>`;
+                }
+            } catch (error) {
+                output.innerHTML = `<p>An unexpected error occurred: ${error.message}</p>`;
+            }
+        });
+    </script>
+</body>
+</html>
